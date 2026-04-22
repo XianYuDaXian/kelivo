@@ -165,6 +165,19 @@ class _ChatInputBarState extends State<ChatInputBar>
   // Instance method for onChanged to avoid recreating the callback on every build
   void _onTextChanged(String _) => setState(() {});
 
+  bool _isPasteShortcut(KeyEvent event) {
+    if (event.logicalKey != LogicalKeyboardKey.keyV) return false;
+    return HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isControlPressed;
+  }
+
+  bool _handleGlobalKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (!_isPasteShortcut(event)) return false;
+    unawaited(_handlePasteFromClipboard());
+    return true;
+  }
+
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
     setState(() => _images.addAll(paths));
@@ -212,6 +225,7 @@ class _ChatInputBarState extends State<ChatInputBar>
     _controller = widget.controller ?? TextEditingController();
     widget.mediaController?._bind(this);
     WidgetsBinding.instance.addObserver(this);
+    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
   }
 
   @override
@@ -239,6 +253,7 @@ class _ChatInputBarState extends State<ChatInputBar>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     for (final timer in _repeatTimers.values) {
       try {
         timer?.cancel();
@@ -522,18 +537,9 @@ class _ChatInputBarState extends State<ChatInputBar>
     }
 
     // Paste handling for images on iOS/macOS (tablet/desktop)
-    if (isDown && isPasteV) {
-      final keys = HardwareKeyboard.instance.logicalKeysPressed;
-      final meta =
-          keys.contains(LogicalKeyboardKey.metaLeft) ||
-          keys.contains(LogicalKeyboardKey.metaRight);
-      final ctrl =
-          keys.contains(LogicalKeyboardKey.controlLeft) ||
-          keys.contains(LogicalKeyboardKey.controlRight);
-      if (meta || ctrl) {
-        _handlePasteFromClipboard();
-        return KeyEventResult.handled;
-      }
+    if (isDown && isPasteV && _isPasteShortcut(event)) {
+      _handlePasteFromClipboard();
+      return KeyEventResult.handled;
     }
 
     // Arrow repeat fix only needed on iOS tablets
