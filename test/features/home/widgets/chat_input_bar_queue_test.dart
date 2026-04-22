@@ -5,6 +5,7 @@ import 'package:Kelivo/features/home/widgets/chat_input_bar.dart';
 import 'package:Kelivo/icons/lucide_adapter.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -134,6 +135,30 @@ void main() {
 
     controller.dispose();
     focusNode.dispose();
+  });
+
+  testWidgets('iPhone 输入栏显示剪贴板粘贴按钮', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    try {
+      await tester.pumpWidget(
+        buildHarness(
+          controller: controller,
+          focusNode: focusNode,
+          onSend: (_) async => ChatInputSubmissionResult.rejected,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Lucide.Clipboard), findsOneWidget);
+    } finally {
+      controller.dispose();
+      focusNode.dispose();
+      debugDefaultTargetPlatformOverride = null;
+      await tester.binding.setSurfaceSize(null);
+    }
   });
 }
 

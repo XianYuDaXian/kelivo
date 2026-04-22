@@ -1414,6 +1414,8 @@ class _ChatInputBarState extends State<ChatInputBar>
     final size = MediaQuery.sizeOf(context);
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final bool isMobileLayout = size.width < AppBreakpoints.tablet;
+    final bool isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+    final bool showClipboardPasteButton = isIOS && isMobileLayout;
     final double visibleHeight = size.height - viewInsets.bottom;
     final double attachmentsHeight =
         (hasDocs ? 48 + AppSpacing.xs : 0) +
@@ -1777,6 +1779,20 @@ class _ChatInputBarState extends State<ChatInputBar>
                             ),
                             Row(
                               children: [
+                                if (showClipboardPasteButton) ...[
+                                  _CompactIconButton(
+                                    tooltip: MaterialLocalizations.of(
+                                      context,
+                                    ).pasteButtonLabel,
+                                    icon: Lucide.Clipboard,
+                                    onTap: _composerLocked
+                                        ? null
+                                        : () => unawaited(
+                                            _handlePasteFromClipboard(),
+                                          ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
                                 if (widget.showMoreButton) ...[
                                   _CompactIconButton(
                                     tooltip: AppLocalizations.of(
