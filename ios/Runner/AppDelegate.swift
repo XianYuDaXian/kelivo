@@ -23,11 +23,8 @@ import UIKit
       let clipboardChannel = FlutterMethodChannel(name: "app.clipboard", binaryMessenger: controller.binaryMessenger)
       clipboardChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
         if call.method == "getClipboardImages" {
-          DispatchQueue.global(qos: .userInitiated).async {
-            let paths = self.readClipboardImagePaths()
-            DispatchQueue.main.async {
-              result(paths)
-            }
+          self.readClipboardImagePaths { paths in
+            result(paths)
           }
         } else {
           result(FlutterMethodNotImplemented)
@@ -47,19 +44,21 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  private func readClipboardImagePaths() -> [String] {
+  private func readClipboardImagePaths(completion: @escaping ([String]) -> Void) {
     let pasteboard = UIPasteboard.general
 
     if let image = pasteboard.image,
        let path = Self.persistClipboardImage(image) {
-      return [path]
+      completion([path])
+      return
     }
 
     if let path = Self.readClipboardImageData(from: pasteboard) {
-      return [path]
+      completion([path])
+      return
     }
 
-    return Self.readClipboardImageItemProviders(from: pasteboard)
+    Self.readClipboardImageItemProviders(from: pasteboard, completion: completion)
   }
 
   private static func readClipboardImageData(from pasteboard: UIPasteboard) -> String? {
@@ -74,12 +73,19 @@ import UIKit
     return nil
   }
 
-  private static func readClipboardImageItemProviders(from pasteboard: UIPasteboard) -> [String] {
-    guard !pasteboard.itemProviders.isEmpty else { return [] }
+  private static func readClipboardImageItemProviders(
+    from pasteboard: UIPasteboard,
+    completion: @escaping ([String]) -> Void
+  ) {
+    guard !pasteboard.itemProviders.isEmpty else {
+      completion([])
+      return
+    }
 
     let group = DispatchGroup()
     let lock = NSLock()
     var paths: [String] = []
+    var didStartLoad = false
 
     for provider in pasteboard.itemProviders {
       guard let typeIdentifier = clipboardImageTypeIdentifiers.first(where: {
@@ -89,6 +95,7 @@ import UIKit
       }
 
       group.enter()
+      didStartLoad = true
       provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, _ in
         defer { group.leave() }
         guard let data, !data.isEmpty else { return }
@@ -104,8 +111,14 @@ import UIKit
       }
     }
 
-    _ = group.wait(timeout: .now() + 1.5)
-    return paths
+    guard didStartLoad else {
+      completion([])
+      return
+    }
+
+    group.notify(queue: .main) {
+      completion(paths)
+    }
   }
 
   private static func persistClipboardImage(_ image: UIImage) -> String? {
